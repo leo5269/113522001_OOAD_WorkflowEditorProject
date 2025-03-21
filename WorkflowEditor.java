@@ -85,7 +85,7 @@ private JPanel createLabeledButton(String labelText, String iconPath) {
     JButton button = createToolButton(iconPath);
 
     // 設定按鈕點擊行為（點擊時變色）
-    button.addActionListener(e -> handleButtonClick(button));
+    button.addActionListener(e -> handleButtonClick(button, labelText));
 
     // 將標籤和按鈕加入 Panel
     buttonPanel.add(label, BorderLayout.WEST);
@@ -119,17 +119,16 @@ private JButton createToolButton(String iconPath) {
 
 // 按鈕點擊事件（變色顯示選擇狀態）
 private JButton selectedButton = null;
-private void handleButtonClick(JButton button) {
+private void handleButtonClick(JButton button, String modeName) {
     if (selectedButton != null) {
         selectedButton.setBackground(Color.WHITE);
     }
     button.setBackground(Color.LIGHT_GRAY);
     selectedButton = button;
+    
+    // 設定當前模式
+    mode = modeName.toLowerCase(); // "rect" 或 "oval"
 }
-
-
-
-
     // 取得當前模式
     public String getMode() {
         return mode;
@@ -140,29 +139,62 @@ private void handleButtonClick(JButton button) {
     }
 }
 
-// 畫布區域
 class CanvasPanel extends JPanel {
     private final List<Shape> shapes = new ArrayList<>();
     private final WorkflowEditor editor;
+    private int startX, startY, endX, endY; // 用來儲存滑鼠拖曳時的座標
+    private boolean isDragging = false; // 是否正在拖曳
+    private String currentMode = ""; // 記錄當前模式 (rect or oval)
 
     public CanvasPanel(WorkflowEditor editor) {
         this.editor = editor;
         setBackground(Color.WHITE);
+        setPreferredSize(new Dimension(500, 350)); // 設定較小的 Canvas
+        setBorder(BorderFactory.createLineBorder(Color.BLACK, 1)); // 黑色邊框
 
-        // 滑鼠點擊事件
         addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                int x = e.getX();
-                int y = e.getY();
-                String mode = editor.getMode();
-
-                if (mode.equals("Rect")) {
-                    shapes.add(new RectangleShape(x, y, 50, 50));
-                } else if (mode.equals("Oval")) {
-                    shapes.add(new OvalShape(x, y, 50, 50));
+            public void mousePressed(MouseEvent e) {
+                // 只有在 "rect" 或 "oval" 模式時才開始繪製
+                currentMode = editor.getMode();
+                if (currentMode.equals("rect") || currentMode.equals("oval")) {
+                    startX = e.getX();
+                    startY = e.getY();
+                    isDragging = true;
                 }
-                repaint();
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (isDragging) {
+                    endX = e.getX();
+                    endY = e.getY();
+                    isDragging = false;
+
+                    int width = Math.abs(endX - startX);
+                    int height = Math.abs(endY - startY);
+                    int x = Math.min(startX, endX);
+                    int y = Math.min(startY, endY);
+
+                    if (currentMode.equals("rect")) {
+                        shapes.add(new RectangleShape(x, y, width, height));
+                    } else if (currentMode.equals("oval")) {
+                        shapes.add(new OvalShape(x, y, width, height));
+                    }
+
+                    repaint();
+                }
+            }
+        });
+
+        addMouseMotionListener(new MouseMotionAdapter() {
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                if (isDragging) {
+                    endX = e.getX();
+                    endY = e.getY();
+                    repaint(); // 重繪畫布以顯示拖曳的形狀
+                }
             }
         });
     }
@@ -170,11 +202,31 @@ class CanvasPanel extends JPanel {
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
+        g.setFont(new Font("Arial", Font.PLAIN, 14));
+        g.drawString("Canvas", 10, 20);
+
         for (Shape shape : shapes) {
             shape.draw(g);
         }
+
+        // 顯示拖曳中的形狀
+        if (isDragging) {
+            int width = Math.abs(endX - startX);
+            int height = Math.abs(endY - startY);
+            int x = Math.min(startX, endX);
+            int y = Math.min(startY, endY);
+
+            g.setColor(Color.GRAY); // 畫出半透明的預覽框
+            if (currentMode.equals("rect")) {
+                g.drawRect(x, y, width, height);
+            } else if (currentMode.equals("oval")) {
+                g.drawOval(x, y, width, height);
+            }
+        }
     }
 }
+
+
 
 // 抽象類別 - 形狀
 abstract class Shape {
@@ -198,6 +250,7 @@ class RectangleShape extends Shape {
 
     @Override
     public void draw(Graphics g) {
+        g.setColor(new Color(198, 198, 198));
         g.fillRect(x, y, width, height);
     }
 }
@@ -210,6 +263,7 @@ class OvalShape extends Shape {
 
     @Override
     public void draw(Graphics g) {
+        g.setColor(new Color(198, 198, 198));
         g.fillOval(x, y, width, height);
     }
 }
