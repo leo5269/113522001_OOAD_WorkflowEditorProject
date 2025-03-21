@@ -123,7 +123,7 @@ private void handleButtonClick(JButton button, String modeName) {
     if (selectedButton != null) {
         selectedButton.setBackground(Color.WHITE);
     }
-    button.setBackground(Color.LIGHT_GRAY);
+    button.setBackground(Color.BLACK);
     selectedButton = button;
     
     // 設定當前模式
