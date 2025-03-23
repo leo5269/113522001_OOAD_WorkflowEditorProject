@@ -379,19 +379,29 @@ class LinkShape {
 
         if (type.equals("generalization")) {
             // 空心三角形箭頭
-            int[] xPoints = {x2, 
-                         x2 - (int) (arrowSize * Math.cos(angle) - arrowSize * Math.sin(angle)), 
-                         x2 - (int) (arrowSize * Math.cos(angle) + arrowSize * Math.sin(angle))};
-            int[] yPoints = {y2, 
-                         y2 - (int) (arrowSize * Math.sin(angle) + arrowSize * Math.cos(angle)), 
-                         y2 - (int) (arrowSize * Math.sin(angle) - arrowSize * Math.cos(angle))};
-            
-            // 使用填充白色三角形 + 黑色邊框實現空心效果
-            Color origColor = g.getColor();
-            g.setColor(Color.WHITE);
-            g.fillPolygon(xPoints, yPoints, 3);
-            g.setColor(origColor);
-            g.drawPolygon(xPoints, yPoints, 3);
+        
+        // 調整三角形的形狀參數
+        double baseWidth = 0.5; 
+        double height = 1.3;   
+        
+        // 計算三角形三個點
+        int[] xPoints = {
+            x2, // 頂點
+            x2 - (int)(arrowSize * height * Math.cos(angle) - arrowSize * baseWidth * Math.sin(angle)),
+            x2 - (int)(arrowSize * height * Math.cos(angle) + arrowSize * baseWidth * Math.sin(angle))
+        };
+        int[] yPoints = {
+            y2, // 頂點
+            y2 - (int)(arrowSize * height * Math.sin(angle) + arrowSize * baseWidth * Math.cos(angle)),
+            y2 - (int)(arrowSize * height * Math.sin(angle) - arrowSize * baseWidth * Math.cos(angle))
+        };
+        
+        // 使用填充白色三角形 + 黑色邊框實現空心效果
+        Color origColor = g.getColor();
+        g.setColor(Color.WHITE);
+        g.fillPolygon(xPoints, yPoints, 3);
+        g.setColor(origColor);
+        g.drawPolygon(xPoints, yPoints, 3);
         } else if (type.equals("composition")) {
             // 實現45度旋轉的正菱形箭頭（正方形旋轉45度）
             
@@ -401,15 +411,15 @@ class LinkShape {
             // 計算菱形的四個角（正方形旋轉45度）
             int[] xPoints = {
                 x2,                                                      // 前端點
-                x2 - (int)(diamondSize * Math.cos(angle - Math.PI/4)),  // 右側點
+                x2 - (int)(diamondSize * Math.cos(angle - Math.PI/6)),  // 右側點
                 x2 - (int)(diamondSize * Math.sqrt(2) * Math.cos(angle)), // 後端點
-                x2 - (int)(diamondSize * Math.cos(angle + Math.PI/4))   // 左側點
+                x2 - (int)(diamondSize * Math.cos(angle + Math.PI/6))   // 左側點
             };
             int[] yPoints = {
                 y2,                                                      // 前端點
-                y2 - (int)(diamondSize * Math.sin(angle - Math.PI/4)),  // 右側點
+                y2 - (int)(diamondSize * Math.sin(angle - Math.PI/6)),  // 右側點
                 y2 - (int)(diamondSize * Math.sqrt(2) * Math.sin(angle)), // 後端點
-                y2 - (int)(diamondSize * Math.sin(angle + Math.PI/4))   // 左側點
+                y2 - (int)(diamondSize * Math.sin(angle + Math.PI/6))   // 左側點
             };
             
             // 使用填充白色菱形 + 黑色邊框
