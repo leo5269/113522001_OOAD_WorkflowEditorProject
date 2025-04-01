@@ -22,9 +22,13 @@ class CanvasPanel extends JPanel {
     private Shape startShape;
     private Point startPort;
     private List<Point> currentPath = new ArrayList<>();
-    private boolean isDrawingLink = false; // 標記是否正在繪製連線
+    private boolean isDrawingLink = false;
     private List<Shape> selectedShapes = new ArrayList<>();
     private Point selectionStart, selectionEnd;
+
+    private boolean dragging = false;
+    private Point dragStartPoint = null;
+    private Shape draggingShape = null;
 
     public CanvasPanel(WorkflowEditor editor) {
         this.editor = editor;
@@ -37,21 +41,25 @@ class CanvasPanel extends JPanel {
             public void mousePressed(MouseEvent e) {
                 String mode = editor.getMode();
 
-                // 1. 建立 basic rect/oval
                 if (mode.equals("rect") || mode.equals("oval")) {
-                    shapes.add(mode.equals("rect")
+                    Shape newShape = mode.equals("rect")
                             ? new RectangleShape(e.getX(), e.getY(), 120, 80)
-                            : new OvalShape(e.getX(), e.getY(), 120, 80));
+                            : new OvalShape(e.getX(), e.getY(), 120, 80);
+                    assignDepthByOverlapGroup(newShape);
+                    shapes.add(newShape);
                     repaint();
                     return;
                 }
 
-                // 2. select 模式
                 if (mode.equals("select")) {
-                    Shape shape = getShapeAt(e.getX(), e.getY());
+                    Shape shape = getTopMostShapeAt(e.getX(), e.getY());
                     if (shape != null) {
+                        Shape topShape = getTopMostComposite(shape);
                         selectedShapes.clear();
-                        selectedShapes.add(shape);
+                        selectedShapes.add(topShape);
+                        dragging = true;
+                        dragStartPoint = e.getPoint();
+                        draggingShape = topShape;
                         repaint();
                     } else {
                         selectionStart = e.getPoint();
@@ -60,20 +68,12 @@ class CanvasPanel extends JPanel {
                     return;
                 }
 
-                // 3. association / generalization / composition 模式
                 if (mode.matches("association|generalization|composition")) {
-                    // 如果已經在繪製連線
                     if (isDrawingLink) {
-                        // 找離滑鼠最近的port
-                        PortResult close = getClosestPort(e.getX(), e.getY(), 15);
-                        
+                        PortResult close = getClosestTopPort(e.getX(), e.getY(), 15);
+
                         if (close != null && close.shape != startShape) {
-                            // 找到目標port，完成連線
-                            
-                            // 替換最後一個點為目標控制點，保持方向不變
                             currentPath.set(currentPath.size() - 1, close.port);
-                            
-                            // 新增LinkShape
                             links.add(new LinkShape(
                                 startShape,
                                 close.shape,
@@ -82,41 +82,28 @@ class CanvasPanel extends JPanel {
                                 editor.getMode(),
                                 new ArrayList<>(currentPath)
                             ));
-                            
-                            // 重置狀態
                             startShape = null;
                             startPort = null;
                             currentPath.clear();
                             isDrawingLink = false;
                         } else {
-                            // 在空白處點擊，新增一個轉折點
-                            // 記錄當前滑鼠點擊位置為固定轉折點
                             Point clickPoint = new Point(e.getX(), e.getY());
-                            
-                            // 將當前臨時點（跟隨滑鼠移動的點）更新為固定轉折點
                             currentPath.set(currentPath.size() - 1, clickPoint);
-                            
-                            // 添加新的臨時點（會跟隨滑鼠移動）
                             currentPath.add(new Point(e.getX(), e.getY()));
                         }
                         repaint();
                         return;
                     }
-                    
-                    // 開始新的連線
-                    Shape shape = getShapeAt(e.getX(), e.getY());
+
+                    Shape shape = getTopMostShapeAt(e.getX(), e.getY());
                     if (shape != null) {
-                        // 檢查是否有 port
                         Point port = getPortAt(shape, e.getX(), e.getY());
                         if (port != null) {
                             startShape = shape;
                             startPort = port;
                             currentPath.clear();
                             currentPath.add(startPort);
-                            
-                            // 添加一個初始的臨時點，這個點會跟隨滑鼠移動
                             currentPath.add(new Point(e.getX(), e.getY()));
-                            
                             isDrawingLink = true;
                             repaint();
                         }
@@ -128,27 +115,34 @@ class CanvasPanel extends JPanel {
             public void mouseReleased(MouseEvent e) {
                 String mode = editor.getMode();
 
-                // a. select模式結束框選
-                if (mode.equals("select") && selectionStart != null) {
-                    selectionEnd = e.getPoint();
-                    Rectangle selectionRect = new Rectangle(
-                            Math.min(selectionStart.x, selectionEnd.x),
-                            Math.min(selectionStart.y, selectionEnd.y),
-                            Math.abs(selectionStart.x - selectionEnd.x),
-                            Math.abs(selectionStart.y - selectionEnd.y));
+                if (mode.equals("select")) {
+                    if (dragging) {
+                        dragging = false;
+                        bringToFront(draggingShape);
+                        draggingShape = null;
+                        dragStartPoint = null;
+                        repaint();
+                    } else if (selectionStart != null) {
+                        selectionEnd = e.getPoint();
+                        Rectangle selectionRect = new Rectangle(
+                                Math.min(selectionStart.x, selectionEnd.x),
+                                Math.min(selectionStart.y, selectionEnd.y),
+                                Math.abs(selectionStart.x - selectionEnd.x),
+                                Math.abs(selectionStart.y - selectionEnd.y));
 
-                    List<Shape> newSelection = new ArrayList<>();
-                    for (Shape s : shapes) {
-                        Rectangle bounds = new Rectangle(s.x, s.y, s.width, s.height);
-                        if (selectionRect.contains(bounds)) {
-                            newSelection.add(s);
+                        List<Shape> newSelection = new ArrayList<>();
+                        for (Shape s : shapes) {
+                            Rectangle bounds = new Rectangle(s.x, s.y, s.width, s.height);
+                            if (selectionRect.contains(bounds) && isTopMostInGroup(s)) {
+                                newSelection.add(s);
+                            }
                         }
+                        if (!newSelection.isEmpty()) {
+                            selectedShapes = newSelection;
+                        }
+                        selectionStart = selectionEnd = null;
+                        repaint();
                     }
-                    if (!newSelection.isEmpty()) {
-                        selectedShapes = newSelection;
-                    }
-                    selectionStart = selectionEnd = null;
-                    repaint();
                 }
             }
         });
@@ -158,19 +152,26 @@ class CanvasPanel extends JPanel {
             public void mouseDragged(MouseEvent e) {
                 String mode = editor.getMode();
 
-                // a. select模式
-                if (mode.equals("select") && selectionStart != null) {
-                    selectionEnd = e.getPoint();
-                    repaint();
-                    return;
+                if (mode.equals("select")) {
+                    if (dragging && dragStartPoint != null && draggingShape != null) {
+                        int dx = e.getX() - dragStartPoint.x;
+                        int dy = e.getY() - dragStartPoint.y;
+
+                        moveShapeWithChildren(draggingShape, dx, dy);
+
+                        dragStartPoint = e.getPoint();
+                        updateConnectedLinks();
+                        repaint();
+                    } else if (selectionStart != null) {
+                        selectionEnd = e.getPoint();
+                        repaint();
+                    }
                 }
             }
-            
+
             @Override
             public void mouseMoved(MouseEvent e) {
-                // 如果正在繪製連線，更新最後一個點的位置為當前滑鼠位置
                 if (isDrawingLink && currentPath.size() >= 2) {
-                    // 更新最後一個點的位置（臨時點）
                     currentPath.set(currentPath.size() - 1, new Point(e.getX(), e.getY()));
                     repaint();
                 }
@@ -178,30 +179,151 @@ class CanvasPanel extends JPanel {
         });
     }
 
-    // 找「離 (mouseX, mouseY) 最近的 port」
-    private PortResult getClosestPort(int mouseX, int mouseY, int threshold) {
-        PortResult best = null;
-        double bestDist = Double.MAX_VALUE;
-
-        for (Shape shape : shapes) {
-            for (Point p : shape.getConnectionPorts()) {
-                double dist = p.distance(mouseX, mouseY);
-                if (dist <= threshold && dist < bestDist) {
-                    bestDist = dist;
-                    best = new PortResult(shape, p);
-                }
+    private void assignDepthByOverlapGroup(Shape newShape) {
+        Rectangle newRect = new Rectangle(newShape.x, newShape.y, newShape.width, newShape.height);
+        int maxDepthInOverlap = -1;
+        for (Shape s : shapes) {
+            Rectangle r = new Rectangle(s.x, s.y, s.width, s.height);
+            if (r.intersects(newRect)) {
+                maxDepthInOverlap = Math.max(maxDepthInOverlap, s.getDepth());
             }
         }
-        return best;
+        newShape.setDepth(maxDepthInOverlap + 1);
+    }
+
+    private boolean isTopMostInGroup(Shape target) {
+        Rectangle rect = new Rectangle(target.x, target.y, target.width, target.height);
+        for (Shape other : shapes) {
+            if (other == target) continue;
+            Rectangle orect = new Rectangle(other.x, other.y, other.width, other.height);
+            if (orect.intersects(rect) && other.getDepth() > target.getDepth()) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    private void bringToFront(Shape shape) {
+        int maxDepth = shapes.stream().mapToInt(Shape::getDepth).max().orElse(0);
+        shape.setDepth(maxDepth + 1);
+    }
+
+    private void updateConnectedLinks() {
+        for (LinkShape link : links) {
+            if (link.fromShape != null && link.start != null) {
+                link.start = findClosestPort(link.fromShape, link.start);
+            }
+            if (link.toShape != null && link.end != null) {
+                link.end = findClosestPort(link.toShape, link.end);
+            }
+            List<Point> newPath = new ArrayList<>();
+            if (link.start != null) newPath.add(link.start);
+            if (link.end != null) newPath.add(link.end);
+            link.setPath(newPath);
+        }
+    }
+
+    /*private void assignDepthByOverlap(Shape newShape) {
+        int newDepth = 0;
+        Rectangle current = new Rectangle(newShape.x, newShape.y, newShape.width, newShape.height);
+        for (Shape s : shapes) {
+            Rectangle existing = new Rectangle(s.x, s.y, s.width, s.height);
+            if (existing.intersects(current)) {
+                newDepth = Math.max(newDepth, s.getDepth() + 1);
+            }
+        }
+        newShape.setDepth(newDepth);
+    }*/
+
+    private Point findClosestPort(Shape shape, Point oldPort) {
+        Point closest = null;
+        double bestDist = Double.MAX_VALUE;
+        for (Point p : shape.getConnectionPorts()) {
+            double d = p.distance(oldPort);
+            if (d < bestDist) {
+                bestDist = d;
+                closest = p;
+            }
+        }
+        return closest;
+    }
+
+
+    // 找「離 (mouseX, mouseY) 最近的 port」
+    private PortResult getClosestTopPort(int mouseX, int mouseY, int threshold) {
+        Shape topShape = getTopMostShapeAt(mouseX, mouseY);
+        if (topShape == null) return null;
+
+        Point best = null;
+        double bestDist = Double.MAX_VALUE;
+        for (Point p : topShape.getConnectionPorts()) {
+            double dist = p.distance(mouseX, mouseY);
+            if (dist <= threshold && dist < bestDist) {
+                bestDist = dist;
+                best = p;
+            }
+        }
+        return best != null ? new PortResult(topShape, best) : null;
+    }
+
+    private Shape getTopMostComposite(Shape target) {
+        Shape current = target;
+        boolean found;
+
+        do {
+            found = false;
+            for (Shape s : shapes) {
+                if (s instanceof CompositeShape) {
+                    CompositeShape group = (CompositeShape) s;
+                    if (containsRecursively(group, current)) {
+                        current = group;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        } while (found);
+
+        return current;
+    }
+
+    private void moveShapeWithChildren(Shape shape, int dx, int dy) {
+        if (shape instanceof CompositeShape) {
+            CompositeShape group = (CompositeShape) shape;
+            for (Shape child : group.getChildren()) {
+                moveShapeWithChildren(child, dx, dy);
+            }
+            group.updateBounds();
+        } else {
+            shape.x += dx;
+            shape.y += dy;
+        }
+    }
+
+    private boolean containsRecursively(CompositeShape group, Shape target) {
+        if (group.getChildren().contains(target)) return true;
+        for (Shape child : group.getChildren()) {
+            if (child instanceof CompositeShape) {
+                if (containsRecursively((CompositeShape) child, target)) return true;
+            }
+        }
+        return false;
+    }
+
+    private Shape getTopMostShapeAt(int x, int y) {
+        return shapes.stream()
+                .filter(s -> s.contains(x, y) && isTopMostInGroup(s))
+                .sorted((a, b) -> Integer.compare(b.getDepth(), a.getDepth()))
+                .findFirst().orElse(null);
     }
 
     // 找到最上層含點 (x, y) 的 shape
-    private Shape getShapeAt(int x, int y) {
-        for (int i = shapes.size() - 1; i >= 0; i--) {
-            if (shapes.get(i).contains(x, y)) return shapes.get(i);
-        }
-        return null;
-    }
+    /*private Shape getShapeAt(int x, int y) {
+        return shapes.stream()
+                .filter(s -> s.contains(x, y))
+                .max((a, b) -> Integer.compare(a.getDepth(), b.getDepth()))
+                .orElse(null);
+    }*/
 
     // 找 shape 中最接近 (x, y) 的 port
     private Point getPortAt(Shape shape, int x, int y) {
@@ -215,77 +337,61 @@ class CanvasPanel extends JPanel {
 
 // 在CanvasPanel類中的paintComponent方法也需要相應修改
 
-@Override
-protected void paintComponent(Graphics g) {
-    super.paintComponent(g);
-    
-    // 創建Graphics2D以使用高級功能
-    Graphics2D g2d = (Graphics2D) g;
-    
-    // 開啟抗鋸齒功能，使線條更平滑
-    g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        Graphics2D g2d = (Graphics2D) g;
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-    // 1. 先畫所有 shape
-    for (Shape shape : shapes) {
-        List<Point> linkedPorts = getLinkedPorts(shape);
-        boolean show = selectedShapes.contains(shape);
-        shape.draw(g2d, show, linkedPorts);
+        shapes.stream()
+            .sorted((a, b) -> Integer.compare(a.getDepth(), b.getDepth()))
+            .forEach(shape -> {
+                List<Point> linkedPorts = getLinkedPorts(shape);
+                boolean show = selectedShapes.contains(shape);
+                shape.draw(g2d, show, linkedPorts);
+            });
+
+        links.forEach(link -> link.draw(g2d));
+
+        if (isDrawingLink && currentPath.size() > 1) {
+            Stroke originalStroke = g2d.getStroke();
+            g2d.setStroke(new BasicStroke(2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2d.setColor(Color.BLACK);
+
+            for (int i = 0; i < currentPath.size() - 1; i++) {
+                Point p1 = currentPath.get(i);
+                Point p2 = currentPath.get(i + 1);
+                g2d.drawLine(p1.x, p1.y, p2.x, p2.y);
+            }
+
+            if (currentPath.size() >= 2) {
+                String type = editor.getMode();
+                Point from = currentPath.get(currentPath.size() - 2);
+                Point to = currentPath.get(currentPath.size() - 1);
+                LinkShape tempLink = new LinkShape(null, null, null, null, type, null);
+                tempLink.drawArrow(g2d, from.x, from.y, to.x, to.y, type);
+            }
+            g2d.setStroke(originalStroke);
+        }
+
+        if (selectionStart != null && selectionEnd != null) {
+            g2d.setColor(Color.LIGHT_GRAY);
+            int x = Math.min(selectionStart.x, selectionEnd.x);
+            int y = Math.min(selectionStart.y, selectionEnd.y);
+            int w = Math.abs(selectionStart.x - selectionEnd.x);
+            int h = Math.abs(selectionStart.y - selectionEnd.y);
+            g2d.drawRect(x, y, w, h);
+        }
     }
 
-    // 2. 再畫連線
+private List<Point> getLinkedPorts(Shape shape) {
+    List<Point> ports = new ArrayList<>();
     for (LinkShape link : links) {
-        link.draw(g2d);
+        if (link.fromShape == shape && link.start != null) ports.add(link.start);
+        if (link.toShape == shape && link.end != null) ports.add(link.end);
     }
-
-    // 3. 畫 in-progress path
-    if (isDrawingLink && currentPath.size() > 1) {
-        Stroke originalStroke = g2d.getStroke();
-        g2d.setStroke(new BasicStroke(
-            2.0f,                    // 線寬增加到2.0f
-            BasicStroke.CAP_ROUND,   // 圓形線帽
-            BasicStroke.JOIN_ROUND   // 圓形連接點
-        ));
-        
-        g2d.setColor(Color.BLACK);
-        
-        for (int i = 0; i < currentPath.size() - 1; i++) {
-            Point p1 = currentPath.get(i);
-            Point p2 = currentPath.get(i + 1);
-            g2d.drawLine(p1.x, p1.y, p2.x, p2.y);
-        }
-
-        // 畫箭頭 (只在最後一段繪製)
-        if (currentPath.size() >= 2) {
-            String type = editor.getMode();
-            Point from = currentPath.get(currentPath.size() - 2);
-            Point to = currentPath.get(currentPath.size() - 1);
-            
-            LinkShape tempLink = new LinkShape(null, null, null, null, type, null);
-            tempLink.drawArrow(g2d, from.x, from.y, to.x, to.y, type);
-        }
-        
-        g2d.setStroke(originalStroke);
-    }
-
-    // 4. 如果正在框選，就畫框選範圍
-    if (selectionStart != null && selectionEnd != null) {
-        g2d.setColor(Color.LIGHT_GRAY);
-        int x = Math.min(selectionStart.x, selectionEnd.x);
-        int y = Math.min(selectionStart.y, selectionEnd.y);
-        int w = Math.abs(selectionStart.x - selectionEnd.x);
-        int h = Math.abs(selectionStart.y - selectionEnd.y);
-        g2d.drawRect(x, y, w, h);
-    }
+    return ports;
 }
-
-    private List<Point> getLinkedPorts(Shape shape) {
-        List<Point> ports = new ArrayList<>();
-        for (LinkShape link : links) {
-            if (link.fromShape == shape && link.start != null) ports.add(link.start);
-            if (link.toShape == shape && link.end != null) ports.add(link.end);
-        }
-        return ports;
-    }
 
     // group / ungroup 與 shape 相關程式不動
     public void groupSelectedShapes() {
@@ -325,6 +431,14 @@ class LinkShape {
         this.type = type;
         // store the entire path
         this.path = path;
+    }
+    
+    public List<Point> getPath() {
+        return path;
+    }
+
+    public void setPath(List<Point> newPath) {
+        this.path = newPath;
     }
 
     public void draw(Graphics g) {
@@ -461,12 +575,21 @@ class LinkShape {
 
 abstract class Shape {
     protected int x, y, width, height;
+    protected int depth = 0; // 0~99 越大越上層
 
     public Shape(int x, int y, int width, int height) {
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
+    }
+
+    public int getDepth() {
+        return depth;
+    }
+
+    public void setDepth(int depth) {
+        this.depth = depth;
     }
 
     public abstract void draw(Graphics g, boolean showPorts, List<Point> alwaysShowPorts);
@@ -479,6 +602,7 @@ abstract class Shape {
         return new ArrayList<>();
     }
 }
+
 
 class RectangleShape extends Shape {
     public RectangleShape(int x, int y, int width, int height) {
