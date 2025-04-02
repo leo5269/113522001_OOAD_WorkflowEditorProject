@@ -208,14 +208,40 @@ class CanvasPanel extends JPanel {
         shape.setDepth(maxDepth + 1);
     }
 
+    // 修改 updateConnectedLinks 方法，確保 group 後連線端點仍然正確
     private void updateConnectedLinks() {
         for (LinkShape link : links) {
-            if (link.fromShape != null && link.start != null) {
-                link.start = findClosestPort(link.fromShape, link.start);
+            if (link.fromShape != null) {
+                Point closestPort = null;
+                
+                // 如果是 CompositeShape，尋找最近的子物件連接點
+                if (link.fromShape instanceof CompositeShape) {
+                    closestPort = findClosestChildPort((CompositeShape) link.fromShape, link.start);
+                } else {
+                    closestPort = findClosestPort(link.fromShape, link.start);
+                }
+                
+                if (closestPort != null) {
+                    link.start = closestPort;
+                }
             }
-            if (link.toShape != null && link.end != null) {
-                link.end = findClosestPort(link.toShape, link.end);
+            
+            if (link.toShape != null) {
+                Point closestPort = null;
+                
+                // 如果是 CompositeShape，尋找最近的子物件連接點
+                if (link.toShape instanceof CompositeShape) {
+                    closestPort = findClosestChildPort((CompositeShape) link.toShape, link.end);
+                } else {
+                    closestPort = findClosestPort(link.toShape, link.end);
+                }
+                
+                if (closestPort != null) {
+                    link.end = closestPort;
+                }
             }
+            
+            // 更新路徑
             List<Point> newPath = new ArrayList<>();
             if (link.start != null) newPath.add(link.start);
             if (link.end != null) newPath.add(link.end);
@@ -223,17 +249,42 @@ class CanvasPanel extends JPanel {
         }
     }
 
-    /*private void assignDepthByOverlap(Shape newShape) {
-        int newDepth = 0;
-        Rectangle current = new Rectangle(newShape.x, newShape.y, newShape.width, newShape.height);
-        for (Shape s : shapes) {
-            Rectangle existing = new Rectangle(s.x, s.y, s.width, s.height);
-            if (existing.intersects(current)) {
-                newDepth = Math.max(newDepth, s.getDepth() + 1);
+    // 新增方法：尋找 CompositeShape 中最近的子物件連接點
+    private Point findClosestChildPort(CompositeShape composite, Point oldPort) {
+        Point closest = null;
+        double bestDist = Double.MAX_VALUE;
+        
+        // 檢查所有子物件
+        for (Shape child : composite.getChildren()) {
+            if (child instanceof CompositeShape) {
+                // 遞迴檢查子 CompositeShape
+                Point childPort = findClosestChildPort((CompositeShape) child, oldPort);
+                if (childPort != null) {
+                    double dist = childPort.distance(oldPort);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        closest = childPort;
+                    }
+                }
+            } else {
+                // 檢查普通 Shape 的連接點
+                for (Point p : child.getConnectionPorts()) {
+                    double dist = p.distance(oldPort);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        closest = p;
+                    }
+                }
             }
         }
-        newShape.setDepth(newDepth);
-    }*/
+        
+        // 如果沒有找到子物件的連接點，使用 CompositeShape 自己的連接點
+        if (closest == null) {
+            closest = findClosestPort(composite, oldPort);
+        }
+        
+        return closest;
+    }
 
     private Point findClosestPort(Shape shape, Point oldPort) {
         Point closest = null;
@@ -247,7 +298,6 @@ class CanvasPanel extends JPanel {
         }
         return closest;
     }
-
 
     // 找「離 (mouseX, mouseY) 最近的 port」
     private PortResult getClosestTopPort(int mouseX, int mouseY, int threshold) {
@@ -317,14 +367,6 @@ class CanvasPanel extends JPanel {
                 .findFirst().orElse(null);
     }
 
-    // 找到最上層含點 (x, y) 的 shape
-    /*private Shape getShapeAt(int x, int y) {
-        return shapes.stream()
-                .filter(s -> s.contains(x, y))
-                .max((a, b) -> Integer.compare(a.getDepth(), b.getDepth()))
-                .orElse(null);
-    }*/
-
     // 找 shape 中最接近 (x, y) 的 port
     private Point getPortAt(Shape shape, int x, int y) {
         for (Point p : shape.getConnectionPorts()) {
@@ -335,24 +377,43 @@ class CanvasPanel extends JPanel {
         return null;
     }
 
-// 在CanvasPanel類中的paintComponent方法也需要相應修改
-
+    // 修改 paintComponent 方法，確保所有連線的端點都會被顯示
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2d = (Graphics2D) g;
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
+        // 先收集所有連線端點
+        List<Point> allLinkedPorts = new ArrayList<>();
+        for (LinkShape link : links) {
+            if (link.start != null) allLinkedPorts.add(link.start);
+            if (link.end != null) allLinkedPorts.add(link.end);
+        }
+
+        // 繪製所有 shape
         shapes.stream()
             .sorted((a, b) -> Integer.compare(a.getDepth(), b.getDepth()))
             .forEach(shape -> {
-                List<Point> linkedPorts = getLinkedPorts(shape);
-                boolean show = selectedShapes.contains(shape);
-                shape.draw(g2d, show, linkedPorts);
+                // 取得該 shape 所有應該顯示的連接點
+                boolean isSelected = selectedShapes.contains(shape);
+                shape.draw(g2d, isSelected, allLinkedPorts);
             });
 
+        // 繪製所有連線
         links.forEach(link -> link.draw(g2d));
 
+        // 繪製選擇框
+        if (selectionStart != null && selectionEnd != null) {
+            g2d.setColor(Color.LIGHT_GRAY);
+            int x = Math.min(selectionStart.x, selectionEnd.x);
+            int y = Math.min(selectionStart.y, selectionEnd.y);
+            int w = Math.abs(selectionStart.x - selectionEnd.x);
+            int h = Math.abs(selectionStart.y - selectionEnd.y);
+            g2d.drawRect(x, y, w, h);
+        }
+        
+        // 繪製正在建立的連線
         if (isDrawingLink && currentPath.size() > 1) {
             Stroke originalStroke = g2d.getStroke();
             g2d.setStroke(new BasicStroke(2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
@@ -373,25 +434,7 @@ class CanvasPanel extends JPanel {
             }
             g2d.setStroke(originalStroke);
         }
-
-        if (selectionStart != null && selectionEnd != null) {
-            g2d.setColor(Color.LIGHT_GRAY);
-            int x = Math.min(selectionStart.x, selectionEnd.x);
-            int y = Math.min(selectionStart.y, selectionEnd.y);
-            int w = Math.abs(selectionStart.x - selectionEnd.x);
-            int h = Math.abs(selectionStart.y - selectionEnd.y);
-            g2d.drawRect(x, y, w, h);
-        }
     }
-
-private List<Point> getLinkedPorts(Shape shape) {
-    List<Point> ports = new ArrayList<>();
-    for (LinkShape link : links) {
-        if (link.fromShape == shape && link.start != null) ports.add(link.start);
-        if (link.toShape == shape && link.end != null) ports.add(link.end);
-    }
-    return ports;
-}
 
     // group / ungroup 與 shape 相關程式不動
     public void groupSelectedShapes() {
@@ -493,29 +536,29 @@ class LinkShape {
 
         if (type.equals("generalization")) {
             // 空心三角形箭頭
-        
-        // 調整三角形的形狀參數
-        double baseWidth = 0.5; 
-        double height = 1.3;   
-        
-        // 計算三角形三個點
-        int[] xPoints = {
-            x2, // 頂點
-            x2 - (int)(arrowSize * height * Math.cos(angle) - arrowSize * baseWidth * Math.sin(angle)),
-            x2 - (int)(arrowSize * height * Math.cos(angle) + arrowSize * baseWidth * Math.sin(angle))
-        };
-        int[] yPoints = {
-            y2, // 頂點
-            y2 - (int)(arrowSize * height * Math.sin(angle) + arrowSize * baseWidth * Math.cos(angle)),
-            y2 - (int)(arrowSize * height * Math.sin(angle) - arrowSize * baseWidth * Math.cos(angle))
-        };
-        
-        // 使用填充白色三角形 + 黑色邊框實現空心效果
-        Color origColor = g.getColor();
-        g.setColor(Color.WHITE);
-        g.fillPolygon(xPoints, yPoints, 3);
-        g.setColor(origColor);
-        g.drawPolygon(xPoints, yPoints, 3);
+            
+            // 調整三角形的形狀參數
+            double baseWidth = 0.5; 
+            double height = 1.3;   
+            
+            // 計算三角形三個點
+            int[] xPoints = {
+                x2, // 頂點
+                x2 - (int)(arrowSize * height * Math.cos(angle) - arrowSize * baseWidth * Math.sin(angle)),
+                x2 - (int)(arrowSize * height * Math.cos(angle) + arrowSize * baseWidth * Math.sin(angle))
+            };
+            int[] yPoints = {
+                y2, // 頂點
+                y2 - (int)(arrowSize * height * Math.sin(angle) + arrowSize * baseWidth * Math.cos(angle)),
+                y2 - (int)(arrowSize * height * Math.sin(angle) - arrowSize * baseWidth * Math.cos(angle))
+            };
+            
+            // 使用填充白色三角形 + 黑色邊框實現空心效果
+            Color origColor = g.getColor();
+            g.setColor(Color.WHITE);
+            g.fillPolygon(xPoints, yPoints, 3);
+            g.setColor(origColor);
+            g.drawPolygon(xPoints, yPoints, 3);
         } else if (type.equals("composition")) {
             // 實現45度旋轉的正菱形箭頭（正方形旋轉45度）
             
@@ -603,7 +646,6 @@ abstract class Shape {
     }
 }
 
-
 class RectangleShape extends Shape {
     public RectangleShape(int x, int y, int width, int height) {
         super(x, y, width, height);
@@ -614,13 +656,16 @@ class RectangleShape extends Shape {
         g.setColor(new Color(198, 198, 198));
         g.fillRect(x, y, width, height);
         g.setColor(Color.BLACK);
+        
+        // 繪製所有可見的連接點
         for (Point p : getConnectionPorts()) {
+            // 如果這個點是連線的端點，或者物件被選中，則顯示
             if (showPorts || alwaysShowPorts.contains(p)) {
                 g.fillRect(p.x - 5, p.y - 5, 10, 10);
             }
         }
     }
-
+    
     @Override
     public List<Point> getConnectionPorts() {
         List<Point> ports = new ArrayList<>();
@@ -646,7 +691,10 @@ class OvalShape extends Shape {
         g.setColor(new Color(198, 198, 198));
         g.fillOval(x, y, width, height);
         g.setColor(Color.BLACK);
+        
+        // 繪製所有可見的連接點
         for (Point p : getConnectionPorts()) {
+            // 如果這個點是連線的端點，或者物件被選中，則顯示
             if (showPorts || alwaysShowPorts.contains(p)) {
                 g.fillRect(p.x - 5, p.y - 5, 10, 10);
             }
@@ -690,8 +738,20 @@ abstract class CompositeShape extends Shape {
 
     @Override
     public void draw(Graphics g, boolean showPorts, List<Point> alwaysShowPorts) {
-        for (Shape child : children) {
+        // 繪製所有子物件
+        for (Shape child : getChildren()) {
+            // 選中組合物件時，子物件也應顯示連接點
             child.draw(g, showPorts, alwaysShowPorts);
+        }
+        
+        // 繪製組合物件自己的連接點
+        if (showPorts) {
+            g.setColor(Color.BLACK);
+            for (Point p : getConnectionPorts()) {
+                if (alwaysShowPorts.contains(p)) {
+                    g.fillRect(p.x - 5, p.y - 5, 10, 10);
+                }
+            }
         }
     }
 
