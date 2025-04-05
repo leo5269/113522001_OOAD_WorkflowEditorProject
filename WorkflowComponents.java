@@ -41,7 +41,7 @@ class CanvasPanel extends JPanel { // CanvasPanel
 
                 if (mode.equals("rect") || mode.equals("oval")) {
                     Shape newShape = mode.equals("rect")
-                            ? new RectangleShape(e.getX(), e.getY(), 120, 80)
+                            ? new RectangleShape(e.getX(), e.getY(), 100, 120)
                             : new OvalShape(e.getX(), e.getY(), 120, 80);
                     assignDepthByOverlapGroup(newShape);
                     shapes.add(newShape);
