@@ -4,8 +4,7 @@ import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.List;
 
-// 用來包裝搜尋到的 shape & port
-class PortResult {
+class PortResult { // 用來包裝搜尋到的 shape & port
     public Shape shape;
     public Point port;
     public PortResult(Shape shape, Point port) {
@@ -14,8 +13,7 @@ class PortResult {
     }
 }
 
-// CanvasPanel
-class CanvasPanel extends JPanel {
+class CanvasPanel extends JPanel { // CanvasPanel
     private final List<Shape> shapes = new ArrayList<>();
     private final List<LinkShape> links = new ArrayList<>();
     private final WorkflowEditor editor;
@@ -57,6 +55,7 @@ class CanvasPanel extends JPanel {
                         Shape topShape = getTopMostComposite(shape);
                         selectedShapes.clear();
                         selectedShapes.add(topShape);
+                        editor.updateEditMenuForSelection(selectedShapes);
                         dragging = true;
                         dragStartPoint = e.getPoint();
                         draggingShape = topShape;
@@ -139,6 +138,7 @@ class CanvasPanel extends JPanel {
                         }
                         if (!newSelection.isEmpty()) {
                             selectedShapes = newSelection;
+                            editor.updateEditMenuForSelection(selectedShapes);
                         }
                         selectionStart = selectionEnd = null;
                         repaint();
@@ -208,8 +208,7 @@ class CanvasPanel extends JPanel {
         shape.setDepth(maxDepth + 1);
     }
 
-    // 修改 updateConnectedLinks 方法，確保 group 後連線端點仍然正確
-    private void updateConnectedLinks() {
+    private void updateConnectedLinks() { // 修改 updateConnectedLinks 方法，確保 group 後連線端點仍然正確
         for (LinkShape link : links) {
             if (link.fromShape != null) {
                 Point closestPort = null;
@@ -249,13 +248,11 @@ class CanvasPanel extends JPanel {
         }
     }
 
-    // 新增方法：尋找 CompositeShape 中最近的子物件連接點
-    private Point findClosestChildPort(CompositeShape composite, Point oldPort) {
+    private Point findClosestChildPort(CompositeShape composite, Point oldPort) { // 尋找 CompositeShape 中最近的子物件連接點
         Point closest = null;
         double bestDist = Double.MAX_VALUE;
         
-        // 檢查所有子物件
-        for (Shape child : composite.getChildren()) {
+        for (Shape child : composite.getChildren()) { // 檢查所有子物件
             if (child instanceof CompositeShape) {
                 // 遞迴檢查子 CompositeShape
                 Point childPort = findClosestChildPort((CompositeShape) child, oldPort);
@@ -400,8 +397,7 @@ class CanvasPanel extends JPanel {
                 shape.draw(g2d, isSelected, allLinkedPorts);
             });
 
-        // 繪製所有連線
-        links.forEach(link -> link.draw(g2d));
+        links.forEach(link -> link.draw(g2d)); // 繪製所有連線
 
         // 繪製選擇框
         if (selectionStart != null && selectionEnd != null) {
@@ -436,7 +432,6 @@ class CanvasPanel extends JPanel {
         }
     }
 
-    // group / ungroup 與 shape 相關程式不動
     public void groupSelectedShapes() {
         if (selectedShapes.size() > 1) {
             CompositeShape group = new ConcreteCompositeShape(selectedShapes);
@@ -444,6 +439,7 @@ class CanvasPanel extends JPanel {
             shapes.add(group);
             selectedShapes.clear();
             selectedShapes.add(group);
+            editor.updateEditMenuForSelection(selectedShapes);
             repaint();
         }
     }
@@ -455,6 +451,24 @@ class CanvasPanel extends JPanel {
             shapes.addAll(group.getChildren());
             selectedShapes.clear();
             selectedShapes.addAll(group.getChildren());
+            editor.updateEditMenuForSelection(selectedShapes);
+            repaint();
+        }
+    }
+
+    public void showLabelDialogForSelectedShape() {
+        if (selectedShapes.size() != 1) return;
+        Shape shape = selectedShapes.get(0);
+        if (shape instanceof CompositeShape) return;
+    
+        LabelStyleDialog dialog = new LabelStyleDialog((JFrame) SwingUtilities.getWindowAncestor(this), shape);
+        dialog.setVisible(true);
+    
+        if (dialog.isConfirmed()) {
+            shape.setLabelText(dialog.getLabelName());
+            shape.setLabelShape(dialog.getLabelShape());
+            shape.setLabelColor(dialog.getLabelColor());
+            shape.setLabelFontSize(dialog.getFontSize());
             repaint();
         }
     }
@@ -472,8 +486,7 @@ class LinkShape {
         this.start = start;
         this.end = end;
         this.type = type;
-        // store the entire path
-        this.path = path;
+        this.path = path; // store the entire path
     }
     
     public List<Point> getPath() {
@@ -485,11 +498,9 @@ class LinkShape {
     }
 
     public void draw(Graphics g) {
-        // 使用 Graphics2D 以獲得更平滑的線條
-        Graphics2D g2d = (Graphics2D) g;
+        Graphics2D g2d = (Graphics2D) g; // 使用 Graphics2D 以獲得更平滑的線條
         
-        // 保存原來的線條樣式
-        Stroke originalStroke = g2d.getStroke();
+        Stroke originalStroke = g2d.getStroke(); // 保存原來的線條樣式
         
         // 使用更平滑的線條樣式
         g2d.setStroke(new BasicStroke(
@@ -529,14 +540,11 @@ class LinkShape {
     }
 
     public void drawArrow(Graphics g, int x1, int y1, int x2, int y2, String type) {
-        // 箭頭更大更明顯
-        int arrowSize = 14; // 增大箭頭尺寸
+        int arrowSize = 14; // 箭頭尺寸
         double angle = Math.atan2(y2 - y1, x2 - x1);
         Graphics2D g2d = (Graphics2D) g;
 
-        if (type.equals("generalization")) {
-            // 空心三角形箭頭
-            
+        if (type.equals("generalization")) { // 空心三角形箭頭
             // 調整三角形的形狀參數
             double baseWidth = 0.5; 
             double height = 1.3;   
@@ -560,12 +568,12 @@ class LinkShape {
             g.setColor(origColor);
             g.drawPolygon(xPoints, yPoints, 3);
         } else if (type.equals("composition")) {
-            // 實現45度旋轉的正菱形箭頭（正方形旋轉45度）
+            // 實現30度旋轉的正菱形箭頭（正方形旋轉30度）
             
-            // 正菱形的邊長（正方形旋轉45度）
+            // 正菱形的邊長
             int diamondSize = arrowSize;
             
-            // 計算菱形的四個角（正方形旋轉45度）
+            // 計算菱形的四個角
             int[] xPoints = {
                 x2,                                                      // 前端點
                 x2 - (int)(diamondSize * Math.cos(angle - Math.PI/6)),  // 右側點
@@ -619,6 +627,10 @@ class LinkShape {
 abstract class Shape {
     protected int x, y, width, height;
     protected int depth = 0; // 0~99 越大越上層
+    protected String labelText = null;
+    protected String labelShape = "rect";
+    protected Color labelColor = Color.WHITE;
+    protected int labelFontSize = 12;
 
     public Shape(int x, int y, int width, int height) {
         this.x = x;
@@ -644,6 +656,17 @@ abstract class Shape {
     public List<Point> getConnectionPorts() {
         return new ArrayList<>();
     }
+
+    public void setLabelText(String text) { this.labelText = text; }
+    public void setLabelShape(String shape) { this.labelShape = shape; }
+    public void setLabelColor(Color color) { this.labelColor = color; }
+    public void setLabelFontSize(int size) { this.labelFontSize = size; }
+
+    public String getLabelText() { return labelText; }
+    public String getLabelShape() { return labelShape; }
+    public Color getLabelColor() { return labelColor; }
+    public int getLabelFontSize() { return labelFontSize; }
+    public boolean hasLabel() { return labelText != null && !labelText.isEmpty(); }
 }
 
 class RectangleShape extends Shape {
@@ -663,6 +686,30 @@ class RectangleShape extends Shape {
             if (showPorts || alwaysShowPorts.contains(p)) {
                 g.fillRect(p.x - 5, p.y - 5, 10, 10);
             }
+        }
+
+        if (hasLabel()) {
+            Graphics2D g2d = (Graphics2D) g;
+            int labelW = 60;
+            int labelH = 30;
+            int cx = x + width / 2;
+            int cy = y + height / 2;
+            int labelX = cx - labelW / 2;
+            int labelY = cy - labelH / 2;
+        
+            g2d.setColor(labelColor);
+            if ("oval".equalsIgnoreCase(labelShape)) {
+                g2d.fillOval(labelX, labelY, labelW, labelH);
+            } else {
+                g2d.fillRect(labelX, labelY, labelW, labelH);
+            }
+        
+            g2d.setColor(Color.BLACK);
+            g2d.setFont(new Font("Arial", Font.PLAIN, labelFontSize));
+            FontMetrics fm = g2d.getFontMetrics();
+            int textWidth = fm.stringWidth(labelText);
+            int textHeight = fm.getHeight();
+            g2d.drawString(labelText, cx - textWidth / 2, cy + textHeight / 4);
         }
     }
     
@@ -698,6 +745,30 @@ class OvalShape extends Shape {
             if (showPorts || alwaysShowPorts.contains(p)) {
                 g.fillRect(p.x - 5, p.y - 5, 10, 10);
             }
+        }
+
+        if (hasLabel()) {
+            Graphics2D g2d = (Graphics2D) g;
+            int labelW = 60;
+            int labelH = 30;
+            int cx = x + width / 2;
+            int cy = y + height / 2;
+            int labelX = cx - labelW / 2;
+            int labelY = cy - labelH / 2;
+        
+            g2d.setColor(labelColor);
+            if ("oval".equalsIgnoreCase(labelShape)) {
+                g2d.fillOval(labelX, labelY, labelW, labelH);
+            } else {
+                g2d.fillRect(labelX, labelY, labelW, labelH);
+            }
+        
+            g2d.setColor(Color.BLACK);
+            g2d.setFont(new Font("Arial", Font.PLAIN, labelFontSize));
+            FontMetrics fm = g2d.getFontMetrics();
+            int textWidth = fm.stringWidth(labelText);
+            int textHeight = fm.getHeight();
+            g2d.drawString(labelText, cx - textWidth / 2, cy + textHeight / 4);
         }
     }
 

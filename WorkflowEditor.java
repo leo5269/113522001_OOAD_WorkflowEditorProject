@@ -1,10 +1,15 @@
 import javax.swing.*;
 import java.awt.*;
+import java.util.List;
 
 public class WorkflowEditor extends JFrame {
     private CanvasPanel canvasPanel;
     private String mode = "Select"; // 預設模式
     private JButton selectedButton = null; // 紀錄當前選中的按鈕
+    
+    // 讓edit可以根據當前select的狀態去決定要顯示label還是group,ungroup
+    private JMenu editMenu;
+    private JMenuItem labelItem, groupItem, ungroupItem;
 
     public WorkflowEditor() {
         setTitle("Workflow Design Editor");
@@ -12,15 +17,12 @@ public class WorkflowEditor extends JFrame {
         setSize(800, 500);
         setLayout(new BorderLayout());
 
-        // 創建選單
-        setJMenuBar(createMenuBar());
+        setJMenuBar(createMenuBar()); // 創建選單
 
-        // 創建工具列（按鈕）
-        JPanel buttonPanel = createToolPanel();
+        JPanel buttonPanel = createToolPanel(); // 創建工具列（按鈕）
 
-        // 創建畫布
-        canvasPanel = new CanvasPanel(this);
-
+        canvasPanel = new CanvasPanel(this); // 創建畫布
+        
         // 添加元件
         add(buttonPanel, BorderLayout.WEST);
         add(canvasPanel, BorderLayout.CENTER);
@@ -33,30 +35,30 @@ public class WorkflowEditor extends JFrame {
         menuBar.setBackground(Color.LIGHT_GRAY);
     
         JMenu fileMenu = new JMenu("File");
-        JMenu editMenu = new JMenu("Edit");
-    
-        fileMenu.setOpaque(true);
-        fileMenu.setBackground(Color.LIGHT_GRAY);
-        fileMenu.setFont(new Font("Arial", Font.PLAIN, 14));
-    
-        editMenu.setOpaque(true);
-        editMenu.setBackground(Color.LIGHT_GRAY);
-        editMenu.setFont(new Font("Arial", Font.PLAIN, 14));
-    
-        // 新增 Group 與 UnGroup 選項
-        JMenuItem groupItem = new JMenuItem("Group");
+        editMenu = new JMenu("Edit");
+        
+        // 群組功能
+        groupItem = new JMenuItem("Group");
         groupItem.addActionListener(e -> canvasPanel.groupSelectedShapes());
-        JMenuItem ungroupItem = new JMenuItem("UnGroup");
-        ungroupItem.addActionListener(e -> canvasPanel.ungroupSelectedShape());
     
+        ungroupItem = new JMenuItem("UnGroup");
+        ungroupItem.addActionListener(e -> canvasPanel.ungroupSelectedShape());
+
+        // label 功能（先不加進 menu）
+        labelItem = new JMenuItem("Label");
+        labelItem.addActionListener(e -> canvasPanel.showLabelDialogForSelectedShape());
+    
+        // 預設先加 group/ungroup
         editMenu.add(groupItem);
         editMenu.add(ungroupItem);
     
+        fileMenu.setFont(new Font("Arial", Font.PLAIN, 14));
+        editMenu.setFont(new Font("Arial", Font.PLAIN, 14));
         menuBar.add(fileMenu);
         menuBar.add(editMenu);
-        return menuBar;
-    }
     
+        return menuBar;
+    }    
 
     // 創建左側工具欄
     private JPanel createToolPanel() {
@@ -132,6 +134,30 @@ public class WorkflowEditor extends JFrame {
         // 設定當前模式
         mode = modeName.toLowerCase();
     }
+
+    public void updateEditMenuForSelection(List<Shape> selectedShapes) {
+        editMenu.removeAll();
+    
+        if (selectedShapes.size() == 1) {
+            Shape shape = selectedShapes.get(0);
+            if (!(shape instanceof CompositeShape)) {
+                // 是單一 basic 物件 -> 顯示 label 按鈕
+                editMenu.add(labelItem);
+            } else {
+                // 是 CompositeShape -> 顯示 group/ungroup
+                editMenu.add(groupItem);
+                editMenu.add(ungroupItem);
+            }
+        } else {
+            // 沒選或選多個 -> 顯示 group/ungroup
+            editMenu.add(groupItem);
+            editMenu.add(ungroupItem);
+        }
+    
+        // 重新顯示 menu
+        editMenu.revalidate();
+        editMenu.repaint();
+    }    
 
     // 取得當前模式
     public String getMode() {
