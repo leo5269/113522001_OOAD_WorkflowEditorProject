@@ -15,16 +15,16 @@ class LabelStyleDialog extends JDialog {
         setLocationRelativeTo(parent);
 
         nameField = new JTextField(shape.getLabelText() != null ? shape.getLabelText() : "");
-        shapeCombo = new JComboBox<>(new String[]{"rect", "oval"});
+        shapeCombo = new JComboBox<>(new String[]{"Rect", "Oval"});
         shapeCombo.setSelectedItem(shape.getLabelShape());
 
         colorField = new JTextField(colorToString(shape.getLabelColor()));
         fontSizeField = new JTextField(String.valueOf(shape.getLabelFontSize()));
 
-        add(new JLabel("Name:")); add(nameField);
-        add(new JLabel("Shape:")); add(shapeCombo);
-        add(new JLabel("Color:")); add(colorField);
-        add(new JLabel("FontSize:")); add(fontSizeField);
+        add(new JLabel("Name")); add(nameField);
+        add(new JLabel("Shape")); add(shapeCombo);
+        add(new JLabel("Color")); add(colorField);
+        add(new JLabel("FontSize")); add(fontSizeField);
 
         JButton cancelBtn = new JButton("Cancel");
         cancelBtn.addActionListener(e -> { confirmed = false; dispose(); });
