@@ -2,15 +2,22 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.List;
 
+import shape.CompositeShape;
+import shape.Shape;
+import shape.ShapeHandler;
+import tool.ToolMode;
+
+// WorkflowEditor 主視窗類別
 public class WorkflowEditor extends JFrame {
     private CanvasPanel canvasPanel;
-    private String mode = "Select"; // 預設模式
+    private String mode = ToolMode.SELECT.getName(); // 預設模式
     private JButton selectedButton = null; // 紀錄當前選中的按鈕
     
-    // 讓edit可以根據當前select的狀態去決定要顯示label還是group,ungroup
+    // 編輯選單
     private JMenu editMenu;
     private JMenuItem labelItem, groupItem, ungroupItem;
 
+    // 創建WorkflowEditor
     public WorkflowEditor() {
         setTitle("Workflow Design Editor");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -21,7 +28,7 @@ public class WorkflowEditor extends JFrame {
 
         JPanel buttonPanel = createToolPanel(); // 創建工具列（按鈕）
 
-        canvasPanel = new CanvasPanel(this); // 創建畫布
+        canvasPanel = new CanvasPanel(this); // 創建Canvas
         
         // 添加元件
         add(buttonPanel, BorderLayout.WEST);
@@ -30,6 +37,7 @@ public class WorkflowEditor extends JFrame {
         setVisible(true);
     }
 
+    // 創建選單列
     private JMenuBar createMenuBar() {
         JMenuBar menuBar = new JMenuBar();
         menuBar.setBackground(Color.LIGHT_GRAY);
@@ -37,15 +45,15 @@ public class WorkflowEditor extends JFrame {
         JMenu fileMenu = new JMenu("File");
         editMenu = new JMenu("Edit");
         
-        // 群組功能
+        // group 功能
         groupItem = new JMenuItem("Group");
         groupItem.addActionListener(e -> canvasPanel.groupSelectedShapes());
     
         ungroupItem = new JMenuItem("UnGroup");
         ungroupItem.addActionListener(e -> canvasPanel.ungroupSelectedShape());
 
-        // label 功能（先不加進 menu）
-        labelItem = new JMenuItem("Label");
+        // label 功能
+        labelItem = new JMenuItem("label");
         labelItem.addActionListener(e -> canvasPanel.showLabelDialogForSelectedShape());
     
         // 預設先加 group/ungroup
@@ -60,49 +68,46 @@ public class WorkflowEditor extends JFrame {
         return menuBar;
     }    
 
-    // 創建左側工具欄
+    // 創建工具面板
     private JPanel createToolPanel() {
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setBackground(Color.WHITE);
 
-        // 創建按鈕區塊（文字在左，圖示按鈕在右）
-        panel.add(createLabeledButton("select", "icons/select.png"));
-        panel.add(createLabeledButton("association", "icons/association.png"));
-        panel.add(createLabeledButton("generalization", "icons/generalization.png"));
-        panel.add(createLabeledButton("composition", "icons/composition.png"));
-        panel.add(createLabeledButton("rect", "icons/rect.png"));
-        panel.add(createLabeledButton("oval", "icons/oval.png"));
+        // 創建按鈕區塊(文字在左，圖示按鈕在右)
+        for (ToolMode toolMode : ToolMode.values()) {
+            panel.add(createLabeledButton(toolMode.getName(), "icons/" + toolMode.getName() + ".png"));
+        }
 
         return panel;
     }
 
-    // 創建 "Label + 圖示按鈕" 的組合（確保背景純白）
+    // 創建帶label的按鈕
     private JPanel createLabeledButton(String labelText, String iconPath) {
         JPanel buttonPanel = new JPanel(new BorderLayout());
         buttonPanel.setBackground(Color.WHITE);
         buttonPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
-        // 創建標籤（文字顯示）
+        // 創建label(文字顯示)
         JLabel label = new JLabel(labelText);
         label.setHorizontalAlignment(SwingConstants.LEFT);
         label.setPreferredSize(new Dimension(100, 40));
         label.setFont(new Font("Arial", Font.PLAIN, 14));
 
-        // 創建按鈕（僅包含圖示）
+        // 創建按鈕(只有包含圖示)
         JButton button = createToolButton(iconPath);
 
-        // 設定按鈕點擊行為（點擊時變色）
+        // 設定按鈕點擊行為(點擊時變色)
         button.addActionListener(e -> handleButtonClick(button, labelText));
 
-        // 將標籤和按鈕加入 Panel
+        // 將label和按鈕加入 Panel
         buttonPanel.add(label, BorderLayout.WEST);
         buttonPanel.add(button, BorderLayout.EAST);
 
         return buttonPanel;
     }
 
-    // 創建僅包含 "圖示" 的按鈕（確保大小統一）
+    // 創建工具按鈕
     private JButton createToolButton(String iconPath) {
         ImageIcon originalIcon = new ImageIcon(iconPath);
         Image image = originalIcon.getImage().getScaledInstance(50, 40, Image.SCALE_SMOOTH);
@@ -123,7 +128,7 @@ public class WorkflowEditor extends JFrame {
         return button;
     }
 
-    // 按鈕點擊事件（變色顯示選擇狀態）
+    // 處理按鈕點擊事件
     private void handleButtonClick(JButton button, String modeName) {
         if (selectedButton != null) {
             selectedButton.setBackground(Color.WHITE);
@@ -135,35 +140,66 @@ public class WorkflowEditor extends JFrame {
         mode = modeName.toLowerCase();
     }
 
+    // 更新編輯選單
     public void updateEditMenuForSelection(List<Shape> selectedShapes) {
         editMenu.removeAll();
     
         if (selectedShapes.size() == 1) {
             Shape shape = selectedShapes.get(0);
-            if (!(shape instanceof CompositeShape)) {
-                // 是單一 basic 物件 -> 顯示 label 按鈕
+            
+            // 使用 ShapeHandler 來決定顯示哪些選單項目
+            MenuUpdater menuUpdater = new MenuUpdater();
+            shape.accept(menuUpdater);
+            
+            if (menuUpdater.shouldShowLabel()) {
                 editMenu.add(labelItem);
-            } else {
-                // 是 CompositeShape -> 顯示 group/ungroup
+            }
+            if (menuUpdater.shouldShowGroupUngroup()) {
                 editMenu.add(groupItem);
                 editMenu.add(ungroupItem);
             }
-        } else {
-            // 沒選或選多個 -> 顯示 group/ungroup
+        } else if (selectedShapes.size() > 1) {
+            // 選多個basic物件就顯示 group 按鈕
             editMenu.add(groupItem);
-            editMenu.add(ungroupItem);
         }
     
         // 重新顯示 menu
         editMenu.revalidate();
         editMenu.repaint();
-    }    
-
-    // 取得當前模式
-    public String getMode() {
-        return mode;
     }
 
+    // 選單更新器
+    private class MenuUpdater implements ShapeHandler {
+        private boolean showLabel = false;
+        private boolean showGroupUngroup = false;
+        
+        @Override
+        public void handleBasicShape(Shape shape) {
+            // basic shape顯示 label 選項
+            showLabel = true;
+            showGroupUngroup = false;
+        }
+        
+        @Override
+        public void handleCompositeShape(CompositeShape composite) {
+            // composite shape顯示 group/ungroup 選項
+            showLabel = false;
+            showGroupUngroup = true;
+        }
+        
+        public boolean shouldShowLabel() {
+            return showLabel;
+        }
+        
+        public boolean shouldShowGroupUngroup() {
+            return showGroupUngroup;
+        }
+    }
+
+    public String getMode() { // 取得當前模式
+        return mode;
+    }
+    
     public static void main(String[] args) {
         SwingUtilities.invokeLater(WorkflowEditor::new);
     }
