@@ -26,6 +26,7 @@ Definitions:
 
 UseCase A. Creating an object
 precondition: 適用 rect 或 oval 按鈕被按下的情況
+
 Case:
 1. 按下按鈕之後按鈕的顏色變黑,以告知使用者目前欲建立物件的 mode。
 2. 使用者移動游標至編輯區域。
@@ -63,6 +64,7 @@ precondition: 適用按鈕 select 被按下的情況。
 definition: 當一個基本物件被處於被 select 的狀態,我們會將所有 connection
 ports 明確顯示出來,如上圖,以表示基本物件處於被 select 的狀 態。相反的
 若基本物件處於不被 select 的狀態,則 connection ports 是隱藏的。
+
 Case 1.
 1. 使用者點選某基本物件。
 2. 若有其他物件處於被 select 的狀態,取消它們被 select 的狀態。
@@ -70,6 +72,7 @@ Case 1.
 ● Alternative c.1 使用者點選的座標,不在任何基本物件內。
 ● Alternative c.2 若有其他物件處於被 select 的狀態,取消它們被 select 的狀
 態。
+
 Case 2.
 1. 使用者在編輯區座標 x1,y1 按住 mouse 左鍵不放,x1,y1 不屬於任何基本
 物件的範圍內。
