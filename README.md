@@ -87,9 +87,11 @@ Case 2.
 
 UseCase D. Group objects
 precondition: 適用於按鈕 select 被按下的情況。
+
 Case 1.
 1. 使用者到 Edit Menu 選取 Group 的功能
 2. 將處於被選取狀態的基本物件合併成一個 composite 物件
+
 Case 2.
 1. 當唯一 1 個 composite 物件處於被 select 的狀態時。
 2. 使用者到 Edit Menu 選取 UnGroup 的功能。
@@ -100,6 +102,7 @@ precondition: 按鈕 select 被按下的情況。
 definition: x,y 座標有可能落在某個物件的範圍內,這種情況該基本物件在 x,y 的
 座標上繪製會重疊其他物件。基本上物件重疊時,請按照物件深度的次 序來繪
 製。
+
 Case:
 1. 使用者在編輯地區的某個基本物件(包含 composite 物件)範圍內按 下
 mouse 的左鍵,但是不放開(mouse pressed) 。
@@ -110,6 +113,7 @@ mouse 的左鍵,但是不放開(mouse pressed) 。
 
 UseCase F. Customize Label Style
 precondition: 當某一個基本物件處於被 select 的狀態時。
+
 Case:
 1. 使用者到 Edit Menu 點選 label。
 2. 彈跳視窗 Custom label Style,提供以下選項:
