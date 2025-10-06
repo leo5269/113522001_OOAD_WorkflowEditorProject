@@ -23,6 +23,7 @@ Definitions:
 件,而且先接收與攔截落於該物件的 mouse 事件。也就是說,當兩個物件
 重疊時有mouse事件被觸發,則只有最上層的物件會接收到該 mouse 事
 件。
+
 UseCase A. Creating an object
 precondition: 適用 rect 或 oval 按鈕被按下的情況
 Case:
@@ -90,6 +91,7 @@ Case 2.
 1. 當唯一 1 個 composite 物件處於被 select 的狀態時。
 2. 使用者到 Edit Menu 選取 UnGroup 的功能。
 3. composite 物件解構一層。
+
 UseCase E. Move objects
 precondition: 按鈕 select 被按下的情況。
 definition: x,y 座標有可能落在某個物件的範圍內,這種情況該基本物件在 x,y 的
@@ -102,6 +104,7 @@ mouse 的左鍵,但是不放開(mouse pressed) 。
 3. 使用者拖曳到另外一個座標 x,y 放開左鍵 (mouse released) 。
 4. 該基本物件被移動到新座標 x,y 。
 5. 所有連結到該基本物件的 connection links 全部重新繪製。
+
 UseCase F. Customize Label Style
 precondition: 當某一個基本物件處於被 select 的狀態時。
 Case:
